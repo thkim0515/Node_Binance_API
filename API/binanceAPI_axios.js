@@ -15,7 +15,6 @@ async function binance_API(endPoint, dataQueryString, method) {
 
     let signature = crypto.createHmac('sha256', _sec).update(dataQueryString).digest('hex');
     let url = base_url + endPoint + '?' + dataQueryString + '&signature=' + signature;
-
     var JSON_object = '';
 
     const response = await axios(url, {
@@ -26,14 +25,12 @@ async function binance_API(endPoint, dataQueryString, method) {
         timeout: 5000,
     }).then((res) => {
         JSON_object = res.data;
-        console.log(JSON_object);
     }).catch(function (error) {
         console.log('-----------------------------------------------'); 
         console.log(error.response.data); // main_error_data
         console.log('-----------------------------------------------'); 
         console.log(JSON.stringify(error, null, 4));
     });
-    
     return JSON_object;
 }
 
