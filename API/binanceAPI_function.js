@@ -1,5 +1,6 @@
 const axios_export = require("./binanceAPI_axios");
 const axios = require("axios");
+const WebSocket = require("ws");
 const method = ["GET", "POST", "DELETE"];
 
 // 테스트 함수
@@ -16,7 +17,7 @@ async function test() {
       return highP > lowP ? -1 : highP > lowP ? 1 : 0;
     });
 
-    res = res.slice(0,2) // 배열 자르기 0번부터 4번배열까지 출력
+    res = res.slice(0, 2); // 배열 자르기 0번부터 4번배열까지 출력
     return res;
   };
   getInfo().then(console.table).catch(console.error());
@@ -63,8 +64,8 @@ async function get_symbol() {
   const getInfo = async () => {
     const res = await axios_export.binance_API(endpoint, query, method[0]);
     const symbol_list = [];
-    for ( i = 0; i < res.length; i++){
-        symbol_list.push(res[i].symbol);
+    for (i = 0; i < res.length; i++) {
+      symbol_list.push(res[i].symbol);
     }
     return symbol_list;
   };
@@ -81,13 +82,13 @@ async function get_close_params(symbol, code) {
   const getInfo = async () => {
     const res = await axios_export.binance_API(endpoint, query, method[0]);
     var my_position = await res.positions;
-    console.log(my_position)
+    console.log(my_position);
     var target_symbol = await my_position.filter(
       (symbol) => symbol.symbol == symbolUp
     );
     return [target_symbol, symbol, code];
   };
-  
+
   getInfo().then(closing_position).catch(console.error());
 }
 
@@ -95,7 +96,7 @@ async function get_close_params(symbol, code) {
 async function closing_position(target_symbol) {
   if (target_symbol) {
     let positionAMT = target_symbol[0][0].positionAmt;
-    let lerverage = target_symbol[0][0].leverage
+    let leverage = target_symbol[0][0].leverage;
     let symbol = target_symbol[1].toUpperCase();
     let rurl = "https://fapi.binance.com/fapi/v1/ticker/price?symbol=";
     let hap = rurl + symbol;
@@ -110,11 +111,11 @@ async function closing_position(target_symbol) {
         if (positionAMT != 0.0) {
           let side = positionAMT >= 0 ? "sell" : "buy";
           let type = "limit";
-          let quantity = positionAMT;
           let price = Math.round(data.price * 100) / 100;
           let percent = target_symbol[2];
-          
-          quantity = quantity * percent * lerverage * 0.001;
+          let quantity = positionAmt * leverage * 0.1
+          quantity = Math.round(quantity * 1000) / 1000 ;
+
           post_order(symbol, side, type, quantity, price);
         } else {
           console.log("PositionAmt is Null");
@@ -128,6 +129,42 @@ async function closing_position(target_symbol) {
     console.log("Position is Null");
   }
 }
+
+async function close_all_positions() {
+  var endpoint = "/fapi/v2/account";
+  var query = `&timestamp=${Date.now()}`;
+  let rurl = "https://fapi.binance.com/fapi/v1/ticker/price?symbol=";
+  var close_list = [];
+
+  const getInfo = async () => {
+    const res = await axios_export.binance_API(endpoint, query, method[0]);
+    var my_position = await res.positions;
+    let type = "limit";
+    // 만약에 시장가로 하게되면 timeForce와 Price는 전달할 필요가없음
+
+    for (var i = 0; i < my_position.length; i++) {
+      if (my_position[i].positionAmt != 0) {
+        let symbol_name = my_position[i].symbol;
+        let positionAmt = my_position[i].positionAmt;
+        let leverage = my_position[i].leverage;
+        let side = positionAmt >= 0 ? "sell" : "buy";
+        let hap = rurl + symbol_name;
+        let quantity = positionAmt * leverage * 0.1
+        quantity = Math.round(quantity * 1000) / 1000 ;
+
+        await axios(hap, {
+          method: "GET",
+        }).then((response) => {
+          let price = response.data.price;
+          post_order(symbol_name, side, type, quantity, price);
+        });
+      }
+    }
+  };
+  getInfo();
+}
+
+close_all_positions()
 // 일일 PNL
 // code // 1 = 당일수익, 8 = 주간 수익, 31 = 월 수익
 async function get_my_pnl(code) {
@@ -204,43 +241,51 @@ async function get_24h_ticker() {
       var lowP = parseFloat(b.priceChangePercent);
       return highP > lowP ? -1 : highP > lowP ? 1 : 0;
     });
-    return res//.slice(0, 3);
+    return res; //.slice(0, 3);
   };
   return getInfo();
 }
 
-get_24h_ticker()
-  .then((res) => {
-    let update_symbol = res.map((item) => {
-      return item.symbol;
-    });
-    
-    const ws = new WebSocket("wss://fstream.binance.com/ws/!ticker@arr");
+// get_24h_ticker()
+//   .then((res) => {
+//     let update_symbol = res.map((item) => {
+//       return item.symbol;
+//     });
 
-    ws.on("message", function incoming(data) {
-      let sub = JSON.parse(data);
+//     const ws = new WebSocket("wss://fstream.binance.com/ws/!ticker@arr");
 
-      for (var i = 0; i <= sub.length; i++) {
-        try {
-          if (sub[i]) {
-            var temp = sub[i].s;
-            var temp_index = update_symbol.indexOf(temp);
+//     ws.on("message", function incoming(data) {
+//       let sub = JSON.parse(data);
 
-            res[temp_index].priceChangePercent = parseFloat(sub[i].P).toFixed(2);
-            parseFloat(sub[i].p) <= 1 ? res[temp_index].priceChange = sub[i].p : res[temp_index].priceChange = String(parseFloat(sub[i].p).toFixed(2));
-            parseFloat(sub[i].p) <= 1 ? res[temp_index].lastPrice = sub[i].c : res[temp_index].lastPrice = String(parseFloat(sub[i].c).toFixed(2));
-            res[temp_index].volume = parseFloat(sub[i].v).toFixed(2);
-            
-          }
-        } catch (e) {
-          console.log(e);
-        }
-      }
-      console.table(res);
-    });
-  })
-  .catch(console.error);
+//       for (var i = 0; i <= sub.length; i++) {
+//         try {
+//           if (sub[i]) {
+//             var temp = sub[i].s;
+//             var temp_index = update_symbol.indexOf(temp);
 
+//             res[temp_index].priceChangePercent = parseFloat(sub[i].P).toFixed(
+//               2
+//             );
+//             parseFloat(sub[i].p) <= 1
+//               ? (res[temp_index].priceChange = sub[i].p)
+//               : (res[temp_index].priceChange = String(
+//                   parseFloat(sub[i].p).toFixed(2)
+//                 ));
+//             parseFloat(sub[i].p) <= 1
+//               ? (res[temp_index].lastPrice = sub[i].c)
+//               : (res[temp_index].lastPrice = String(
+//                   parseFloat(sub[i].c).toFixed(2)
+//                 ));
+//             res[temp_index].volume = parseFloat(sub[i].v).toFixed(2);
+//           }
+//         } catch (e) {
+//           console.log(e);
+//         }
+//       }
+//       console.table(res);
+//     });
+//   })
+//   .catch(console.error);
 
 module.exports = {
   my_balance: my_balance,
