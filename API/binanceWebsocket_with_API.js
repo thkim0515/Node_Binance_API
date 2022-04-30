@@ -78,3 +78,11 @@ get_24h_ticker()
 //     "L": 18150,         // Last trade Id
 //     "n": 18151          // Total number of trades
 //   }
+
+//res[temp_index].priceChange = parseFloat(sub[i].p).toFixed(2);
+//res[temp_index].priceChangePercent = parseFloat(sub[i].P).toFixed(2);
+//res[temp_index].lastPrice = parseFloat(sub[i].c).toFixed(2);
+//res[temp_index].volume = parseFloat(sub[i].v).toFixed(2);
+
+//console.table(res[temp_index])
+//temp.includes(update_symbol) ? console.log(temp + ' 가격변화 ' + (parseFloat(sub[i].p)).toFixed(2) + ' 퍼센트변화 ' + (parseFloat(sub[i].P)).toFixed(2) + ' 마지막가격 ' + (parseFloat(sub[i].c)).toFixed(2)) : "";       // 만약 USDT 들어가있으면 로그를 찍고 그렇지 않으면 패스

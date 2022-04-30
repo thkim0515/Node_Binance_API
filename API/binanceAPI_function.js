@@ -62,12 +62,11 @@ async function get_symbol() {
 
   const getInfo = async () => {
     const res = await axios_export.binance_API(endpoint, query, method[0]);
-    console.log(res);
-    // const symbol_list = [];
-    // for ( i = 0; i < res.length; i++){
-    //     symbol_list.push(res[i].symbol);
-    // }
-    // return symbol_list;
+    const symbol_list = [];
+    for ( i = 0; i < res.length; i++){
+        symbol_list.push(res[i].symbol);
+    }
+    return symbol_list;
   };
   getInfo().then(console.log).catch(console.error());
 }
@@ -82,22 +81,24 @@ async function get_close_params(symbol, code) {
   const getInfo = async () => {
     const res = await axios_export.binance_API(endpoint, query, method[0]);
     var my_position = await res.positions;
-    var target_symobl = await my_position.filter(
+    console.log(my_position)
+    var target_symbol = await my_position.filter(
       (symbol) => symbol.symbol == symbolUp
     );
-    return [target_symobl, symbol, code];
+    return [target_symbol, symbol, code];
   };
-
+  
   getInfo().then(closing_position).catch(console.error());
 }
 
 // 포지션 종료 [Closing Order]
-async function closing_position(target_symobl) {
-  if (target_symobl) {
-    let positionAMT = target_symobl[0][0].positionAmt;
-    let symobl = target_symobl[1].toUpperCase();
-    let rurl = "https://api.binance.com/api/v1/ticker/price?symbol=";
-    let hap = rurl + symobl;
+async function closing_position(target_symbol) {
+  if (target_symbol) {
+    let positionAMT = target_symbol[0][0].positionAmt;
+    let lerverage = target_symbol[0][0].leverage
+    let symbol = target_symbol[1].toUpperCase();
+    let rurl = "https://fapi.binance.com/fapi/v1/ticker/price?symbol=";
+    let hap = rurl + symbol;
 
     await axios(hap, {
       method: "GET",
@@ -111,10 +112,10 @@ async function closing_position(target_symobl) {
           let type = "limit";
           let quantity = positionAMT;
           let price = Math.round(data.price * 100) / 100;
-          let percent = target_symobl[2];
-
-          quantity = quantity * percent * 0.01;
-          order(symbol, side, type, quantity, price);
+          let percent = target_symbol[2];
+          
+          quantity = quantity * percent * lerverage * 0.001;
+          post_order(symbol, side, type, quantity, price);
         } else {
           console.log("PositionAmt is Null");
         }
@@ -127,7 +128,6 @@ async function closing_position(target_symobl) {
     console.log("Position is Null");
   }
 }
-
 // 일일 PNL
 // code // 1 = 당일수익, 8 = 주간 수익, 31 = 월 수익
 async function get_my_pnl(code) {
@@ -140,13 +140,11 @@ async function get_my_pnl(code) {
     date.getDate() - code
   );
   var endTime = Date.now();
-
   var endpoint = "/fapi/v1/income";
   var query = `&incomeType=${incomeType}&startTime=${startTime}&endTime=${endTime}&timestamp=${Date.now()}`;
+  let today_pnl = 0;
 
   const res = await axios_export.binance_API(endpoint, query, method[0]);
-
-  let today_pnl = 0;
 
   for (i = 0; i < res.length; i++) {
     today_pnl += parseFloat(res[i].income);
